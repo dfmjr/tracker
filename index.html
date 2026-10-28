@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drink Tracker</title>
+    <!-- Tailwind for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js for lightweight logic -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen pb-10">
+
+    <div x-data="drinkTracker()" x-init="init()" x-cloak class="max-w-md mx-auto px-4 pt-8">
+        
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl font-semibold tracking-tight text-slate-800">Drink Log</h1>
+            <p class="text-slate-500 text-sm">Keep track of your consumption</p>
+        </header>
+
+        <!-- Quick Add Section -->
+        <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-8">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">Quick Log</h2>
+            
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <template x-for="type in types" :key="type.id">
+                    <button 
+                        @click="addDrink(type.label, type.icon, type.color)"
+                        class="flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-100 transition-all active:scale-95 hover:bg-slate-50"
+                        :class="type.bgClass"
+                    >
+                        <span class="text-2xl mb-1" x-text="type.icon"></span>
+                        <span class="text-xs font-medium" x-text="type.label"></span>
+                    </button>
+                </template>
+            </div>
+
+            <div class="flex items-center gap-2 mt-4 pt-4 border-t border-slate-50">
+                <input type="date" x-model="selectedDate" class="text-sm bg-transparent border-none focus:ring-0 text-slate-600">
+                <span class="text-xs text-slate-400 italic">Change date if logging for yesterday</span>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">History</h2>
+            
+            <div class="space-y-6">
+                <template x-for="(drinks, date) in groupedDrinks" :key="date">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-400 mb-3 px-1" x-text="formatDate(date)"></h3>
+                        <div class="space-y-2">
+                            <template x-for="(drink, index) in drinks" :key="drink.id">
+                                <div class="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-50 group">
+                                    <div class="flex items-center gap-3">
+                                        <div :class="drink.colorClass" class="w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-inner">
+                                            <span x-text="drink.icon"></span>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-800" x-text="drink.type"></p>
+                                            <p class="text-[10px] text-slate-400 uppercase tracking-tighter" x-text="drink.time"></p>
+                                        </div>
+                                    </div>
+                                    <button @click="deleteDrink(drink.id)" class="text-slate-300 hover:text-red-400 transition-colors p-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Empty State -->
+                <template x-if="Object.keys(groupedDrinks).length === 0">
+                    <div class="text-center py-12">
+                        <p class="text-slate-400 text-sm">No drinks logged yet.</p>
+                    </div>
+                </template>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        function drinkTracker() {
+            return {
+                drinks: [],
+                selectedDate: new Date().toISOString().split('T')[0],
+                types: [
+                    { id: 'beer', label: 'Beer', icon: '🍺', color: 'amber', bgClass: 'bg-amber-50 text-amber-700 border-amber-100', colorClass: 'bg-amber-100' },
+                    { id: 'wine', label: 'Wine', icon: '🍷', color: 'rose', bgClass: 'bg-rose-50 text-rose-700 border-rose-100', colorClass: 'bg-rose-100' },
+                    { id: 'spirits', label: 'Spirits', icon: '🥃', color: 'indigo', bgClass: 'bg-indigo-50 text-indigo-700 border-indigo-100', colorClass: 'bg-indigo-100' },
+                    { id: 'other', label: 'Other', icon: '🍹', color: 'teal', bgClass: 'bg-teal-50 text-teal-700 border-teal-100', colorClass: 'bg-teal-100' },
+                ],
+                
+                init() {
+                    const saved = localStorage.getItem('drinkLogs');
+                    if (saved) {
+                        this.drinks = JSON.parse(saved);
+                    }
+                },
+
+                get groupedDrinks() {
+                    // Sort drinks by date descending
+                    const sorted = [...this.drinks].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    
+                    return sorted.reduce((acc, drink) => {
+                        if (!acc[drink.date]) acc[drink.date] = [];
+                        acc[drink.date].push(drink);
+                        return acc;
+                    }, {});
+                },
+
+                addDrink(typeLabel, icon, colorKey) {
+                    // Find the color class from types array
+                    const typeObj = this.types.find(t => t.label === typeLabel);
+                    
+                    const newDrink = {
+                        id: Date.now(),
+                        date: this.selectedDate,
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        type: typeLabel,
+                        icon: icon,
+                        colorClass: typeObj.colorClass
+                    };
+
+                    this.drinks.push(newDrink);
+                    this.save();
+                },
+
+                deleteDrink(id) {
+                    this.drinks = this.drinks.filter(d => d.id !== id);
+                    this.save();
+                },
+
+                save() {
+                    localStorage.setItem('drinkLogs', JSON.stringify(this.drinks));
+                },
+
+                formatDate(dateStr) {
+                    const options = { weekday: 'long', month: 'short', day: 'numeric' };
+                    return new Date(dateStr).toLocaleDateString(undefined, options);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
